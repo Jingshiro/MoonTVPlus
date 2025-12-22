@@ -104,70 +104,27 @@ async function performScan(
 ): Promise<void> {
   const client = new OpenListClient(url, username!, password!);
 
-  console.log('[OpenList Refresh] 开始扫描:', {
-    taskId,
-    rootPath,
-    url,
-  });
+  // 立即清除缓存，确保后续读取的是新数据
+  invalidateMetaInfoCache(rootPath);
 
   // 立即更新进度，确保任务可被查询
   updateScanTaskProgress(taskId, 0, 0);
 
   try {
-    // 1. 读取现有 metainfo (从数据库或缓存)
-    let existingMetaInfo: MetaInfo | null = getCachedMetaInfo(rootPath);
-
-    if (!existingMetaInfo) {
-      try {
-        console.log('[OpenList Refresh] 尝试从数据库读取 metainfo');
-        const metainfoJson = await db.getGlobalValue('video.metainfo');
-
-        if (metainfoJson) {
-          existingMetaInfo = JSON.parse(metainfoJson);
-          console.log('[OpenList Refresh] 从数据库读取到现有数据:', {
-            hasfolders: !!existingMetaInfo?.folders,
-            foldersType: typeof existingMetaInfo?.folders,
-            videoCount: Object.keys(existingMetaInfo?.folders || {}).length,
-          });
-        }
-      } catch (error) {
-        console.error('[OpenList Refresh] 从数据库读取 metainfo 失败:', error);
-        console.log('[OpenList Refresh] 将创建新数据');
-      }
-    } else {
-      console.log('[OpenList Refresh] 使用缓存的 metainfo，视频数:', Object.keys(existingMetaInfo.folders).length);
-    }
-
-    const metaInfo: MetaInfo = existingMetaInfo || {
+    // 1. 不读取现有数据，直接创建新的 metainfo
+    const metaInfo: MetaInfo = {
       folders: {},
       last_refresh: Date.now(),
     };
 
-    // 确保 folders 对象存在
-    if (!metaInfo.folders || typeof metaInfo.folders !== 'object') {
-      console.warn('[OpenList Refresh] metaInfo.folders 无效，重新初始化');
-      metaInfo.folders = {};
-    }
-
-    console.log('[OpenList Refresh] metaInfo 初始化完成:', {
-      hasfolders: !!metaInfo.folders,
-      foldersType: typeof metaInfo.folders,
-      videoCount: Object.keys(metaInfo.folders).length,
-    });
-
-    // 2. 列出根目录下的所有文件夹
-    const listResponse = await client.listDirectory(rootPath);
+    // 2. 列出根目录下的所有文件夹（强制刷新 OpenList 缓存）
+    const listResponse = await client.listDirectory(rootPath, 1, 100, true);
 
     if (listResponse.code !== 200) {
       throw new Error('OpenList 列表获取失败');
     }
 
     const folders = listResponse.data.content.filter((item) => item.is_dir);
-
-    console.log('[OpenList Refresh] 找到文件夹:', {
-      total: folders.length,
-      names: folders.map(f => f.name),
-    });
 
     // 更新任务进度
     updateScanTaskProgress(taskId, 0, folders.length);
@@ -178,31 +135,17 @@ async function performScan(
 
     for (let i = 0; i < folders.length; i++) {
       const folder = folders[i];
-      console.log('[OpenList Refresh] 处理文件夹:', folder.name);
 
       // 更新进度
       updateScanTaskProgress(taskId, i + 1, folders.length, folder.name);
 
-      // 跳过已搜索过的文件夹
-      if (metaInfo.folders[folder.name]) {
-        console.log('[OpenList Refresh] 跳过已存在的文件夹:', folder.name);
-        continue;
-      }
-
       try {
-        console.log('[OpenList Refresh] 搜索 TMDB:', folder.name);
         // 搜索 TMDB
         const searchResult = await searchTMDB(
           tmdbApiKey,
           folder.name,
           tmdbProxy
         );
-
-        console.log('[OpenList Refresh] TMDB 搜索结果:', {
-          folder: folder.name,
-          code: searchResult.code,
-          hasResult: !!searchResult.result,
-        });
 
         if (searchResult.code === 200 && searchResult.result) {
           const result = searchResult.result;
@@ -219,14 +162,8 @@ async function performScan(
             failed: false,
           };
 
-          console.log('[OpenList Refresh] 添加成功:', {
-            folder: folder.name,
-            title: metaInfo.folders[folder.name].title,
-          });
-
           newCount++;
         } else {
-          console.warn(`[OpenList Refresh] TMDB 搜索失败: ${folder.name}`);
           // 记录失败的文件夹
           metaInfo.folders[folder.name] = {
             tmdb_id: 0,
@@ -266,34 +203,11 @@ async function performScan(
     metaInfo.last_refresh = Date.now();
 
     const metainfoContent = JSON.stringify(metaInfo);
-    console.log('[OpenList Refresh] 保存 metainfo 到数据库:', {
-      videoCount: Object.keys(metaInfo.folders).length,
-      contentLength: metainfoContent.length,
-    });
-
     await db.setGlobalValue('video.metainfo', metainfoContent);
-    console.log('[OpenList Refresh] 保存成功');
-
-    // 验证保存：立即读取数据库
-    try {
-      console.log('[OpenList Refresh] 验证保存：读取数据库');
-      const verifyContent = await db.getGlobalValue('video.metainfo');
-      if (verifyContent) {
-        const verifyParsed = JSON.parse(verifyContent);
-        console.log('[OpenList Refresh] 验证解析成功:', {
-          hasfolders: !!verifyParsed.folders,
-          foldersType: typeof verifyParsed.folders,
-          videoCount: Object.keys(verifyParsed.folders || {}).length,
-        });
-      }
-    } catch (verifyError) {
-      console.error('[OpenList Refresh] 验证失败:', verifyError);
-    }
 
     // 5. 更新缓存
     invalidateMetaInfoCache(rootPath);
     setCachedMetaInfo(rootPath, metaInfo);
-    console.log('[OpenList Refresh] 缓存已更新');
 
     // 6. 更新配置
     const config = await getConfig();
@@ -305,15 +219,7 @@ async function performScan(
     completeScanTask(taskId, {
       total: folders.length,
       new: newCount,
-      existing: Object.keys(metaInfo.folders).length - newCount,
-      errors: errorCount,
-    });
-
-    console.log('[OpenList Refresh] 扫描完成:', {
-      taskId,
-      total: folders.length,
-      new: newCount,
-      existing: Object.keys(metaInfo.folders).length - newCount,
+      existing: 0,
       errors: errorCount,
     });
   } catch (error) {

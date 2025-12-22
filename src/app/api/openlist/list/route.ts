@@ -16,7 +16,7 @@ import { getTMDBImageUrl } from '@/lib/tmdb.search';
 export const runtime = 'nodejs';
 
 /**
- * GET /api/openlist/list?page=1&pageSize=20&includeFailed=false
+ * GET /api/openlist/list?page=1&pageSize=20&includeFailed=false&noCache=false
  * 获取私人影库视频列表
  */
 export async function GET(request: NextRequest) {
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
     const includeFailed = searchParams.get('includeFailed') === 'true';
+    const noCache = searchParams.get('noCache') === 'true';
 
     const config = await getConfig();
     const openListConfig = config.OpenListConfig;
@@ -49,30 +50,22 @@ export async function GET(request: NextRequest) {
     );
 
     // 读取 metainfo (从数据库或缓存)
-    let metaInfo: MetaInfo | null = getCachedMetaInfo(rootPath);
+    let metaInfo: MetaInfo | null = null;
 
-    console.log('[OpenList List] 缓存检查:', {
-      rootPath,
-      hasCachedMetaInfo: !!metaInfo,
-    });
+    // 如果不使用缓存，直接从数据库读取
+    if (noCache) {
+      // noCache 模式：跳过缓存
+    } else {
+      metaInfo = getCachedMetaInfo(rootPath);
+    }
 
     if (!metaInfo) {
       try {
-        console.log('[OpenList List] 尝试从数据库读取 metainfo');
-
         const metainfoJson = await db.getGlobalValue('video.metainfo');
 
         if (metainfoJson) {
-          console.log('[OpenList List] 从数据库获取到数据，长度:', metainfoJson.length);
-
           try {
             metaInfo = JSON.parse(metainfoJson);
-            console.log('[OpenList List] JSON 解析成功');
-            console.log('[OpenList List] metaInfo 结构:', {
-              hasfolders: !!metaInfo?.folders,
-              foldersType: typeof metaInfo?.folders,
-              keys: metaInfo?.folders ? Object.keys(metaInfo.folders) : [],
-            });
 
             // 验证数据结构
             if (!metaInfo || typeof metaInfo !== 'object') {
@@ -82,8 +75,10 @@ export async function GET(request: NextRequest) {
               throw new Error('metaInfo.folders 不存在或不是对象');
             }
 
-            console.log('[OpenList List] 解析成功，视频数量:', Object.keys(metaInfo.folders).length);
-            setCachedMetaInfo(rootPath, metaInfo);
+            // 只有在不是 noCache 模式时才更新缓存
+            if (!noCache) {
+              setCachedMetaInfo(rootPath, metaInfo);
+            }
           } catch (parseError) {
             console.error('[OpenList List] JSON 解析或验证失败:', parseError);
             throw new Error(`JSON 解析失败: ${(parseError as Error).message}`);
@@ -106,7 +101,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!metaInfo) {
-      console.error('[OpenList List] metaInfo 为 null');
       return NextResponse.json(
         { error: '无数据', list: [], total: 0 },
         { status: 200 }
@@ -115,18 +109,11 @@ export async function GET(request: NextRequest) {
 
     // 验证 metaInfo 结构
     if (!metaInfo.folders || typeof metaInfo.folders !== 'object') {
-      console.error('[OpenList List] metaInfo.folders 无效:', {
-        hasfolders: !!metaInfo.folders,
-        foldersType: typeof metaInfo.folders,
-        metaInfoKeys: Object.keys(metaInfo),
-      });
       return NextResponse.json(
         { error: 'metainfo.json 结构无效', list: [], total: 0 },
         { status: 200 }
       );
     }
-
-    console.log('[OpenList List] 开始转换视频列表，视频数:', Object.keys(metaInfo.folders).length);
 
     // 转换为数组并分页
     const allVideos = Object.entries(metaInfo.folders)

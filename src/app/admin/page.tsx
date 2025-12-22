@@ -2569,10 +2569,11 @@ const OpenListConfigComponent = ({
     }
   }, [config]);
 
-  const fetchVideos = async () => {
+  const fetchVideos = async (noCache = false) => {
     try {
       setRefreshing(true);
-      const response = await fetch('/api/openlist/list?page=1&pageSize=100&includeFailed=true');
+      const url = `/api/openlist/list?page=1&pageSize=100&includeFailed=true${noCache ? '&noCache=true' : ''}`;
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setVideos(data.list || []);
@@ -2658,8 +2659,10 @@ const OpenListConfigComponent = ({
               `扫描完成！新增 ${task.result.new} 个，已存在 ${task.result.existing} 个，失败 ${task.result.errors} 个`,
               showAlert
             );
+            // 先强制从数据库读取视频列表（这会更新缓存）
+            await fetchVideos(true);
+            // 然后再刷新配置（这会触发 useEffect，但此时缓存已经是新的了）
             await refreshConfig();
-            await fetchVideos();
           } else if (task.status === 'failed') {
             clearInterval(pollInterval);
             setScanProgress(null);
@@ -2703,7 +2706,7 @@ const OpenListConfigComponent = ({
   };
 
   const handleCorrectSuccess = () => {
-    fetchVideos();
+    fetchVideos(true); // 强制从数据库重新读取，不使用缓存
   };
 
   const formatDate = (timestamp?: number) => {

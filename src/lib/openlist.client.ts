@@ -174,7 +174,8 @@ export class OpenListClient {
   async listDirectory(
     path: string,
     page = 1,
-    perPage = 100
+    perPage = 100,
+    refresh = false
   ): Promise<OpenListListResponse> {
     const response = await this.fetchWithRetry(`${this.baseURL}/api/fs/list`, {
       method: 'POST',
@@ -182,7 +183,7 @@ export class OpenListClient {
       body: JSON.stringify({
         path,
         password: '',
-        refresh: false,
+        refresh,
         page,
         per_page: perPage,
       }),
