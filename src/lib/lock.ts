@@ -85,11 +85,12 @@ class LockManager {
 
 // 全局单例
 const globalKey = Symbol.for('__MOONTV_LOCK_MANAGER__');
-let lockManager: LockManager | undefined = (global as any)[globalKey];
+let _lockManager: LockManager | undefined = (global as any)[globalKey];
 
-if (!lockManager) {
-  lockManager = new LockManager();
-  (global as any)[globalKey] = lockManager;
+if (!_lockManager) {
+  _lockManager = new LockManager();
+  (global as any)[globalKey] = _lockManager;
 }
 
-export { lockManager };
+// TypeScript doesn't recognize that lockManager is always defined after the if block
+export const lockManager = _lockManager as LockManager;

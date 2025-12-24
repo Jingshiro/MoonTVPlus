@@ -102,29 +102,31 @@ class OwnerExistenceCache {
 
 // 全局单例
 const globalKey = Symbol.for('__MOONTV_USER_INFO_CACHE__');
-let userInfoCache: UserInfoCache | undefined = (global as any)[globalKey];
+let _userInfoCache: UserInfoCache | undefined = (global as any)[globalKey];
 
-if (!userInfoCache) {
-  userInfoCache = new UserInfoCache();
-  (global as any)[globalKey] = userInfoCache;
+if (!_userInfoCache) {
+  _userInfoCache = new UserInfoCache();
+  (global as any)[globalKey] = _userInfoCache;
 
   // 每分钟清理一次过期缓存
   setInterval(() => {
-    userInfoCache?.cleanup();
+    _userInfoCache?.cleanup();
   }, 60 * 1000);
 }
+
+export const userInfoCache = _userInfoCache as UserInfoCache;
 
 const ownerExistenceGlobalKey = Symbol.for('__MOONTV_OWNER_EXISTENCE_CACHE__');
-let ownerExistenceCache: OwnerExistenceCache | undefined = (global as any)[ownerExistenceGlobalKey];
+let _ownerExistenceCache: OwnerExistenceCache | undefined = (global as any)[ownerExistenceGlobalKey];
 
-if (!ownerExistenceCache) {
-  ownerExistenceCache = new OwnerExistenceCache();
-  (global as any)[ownerExistenceGlobalKey] = ownerExistenceCache;
+if (!_ownerExistenceCache) {
+  _ownerExistenceCache = new OwnerExistenceCache();
+  (global as any)[ownerExistenceGlobalKey] = _ownerExistenceCache;
 
   // 每分钟清理一次过期缓存
   setInterval(() => {
-    ownerExistenceCache?.cleanup();
+    _ownerExistenceCache?.cleanup();
   }, 60 * 1000);
 }
 
-export { userInfoCache, ownerExistenceCache };
+export const ownerExistenceCache = _ownerExistenceCache as OwnerExistenceCache;
