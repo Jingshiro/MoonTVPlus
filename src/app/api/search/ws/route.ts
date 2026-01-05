@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
             setTimeout(() => reject(new Error('Emby timeout')), 20000)
           ),
         ])
-          .then((embyResults) => {
+          .then((embyResults: any) => {
             completedSources++;
             if (!streamClosed) {
               const sourceEvent = `data: ${JSON.stringify({
@@ -203,7 +203,7 @@ export async function GET(request: NextRequest) {
             setTimeout(() => reject(new Error('OpenList timeout')), 20000)
           ),
         ])
-          .then((openlistResults) => {
+          .then((openlistResults: any) => {
             completedSources++;
             if (!streamClosed) {
               const sourceEvent = `data: ${JSON.stringify({
