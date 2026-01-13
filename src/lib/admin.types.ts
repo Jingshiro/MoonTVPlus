@@ -158,6 +158,7 @@ export interface AdminConfig {
     Temperature?: number; // AI温度参数（0-2），默认0.7
     MaxTokens?: number; // 最大回复token数，默认1000
     SystemPrompt?: string; // 自定义系统提示词
+    EnableStreaming?: boolean; // 是否启用流式响应，默认true
     // AI问片默认消息配置
     DefaultMessageNoVideo?: string; // 无视频时的默认消息
     DefaultMessageWithVideo?: string; // 有视频时的默认消息（支持 {title} 替换符）

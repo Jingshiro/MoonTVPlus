@@ -9108,6 +9108,7 @@ const AIConfigComponent = ({
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(1000);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [enableStreaming, setEnableStreaming] = useState(true);
 
   // AI默认消息配置
   const [defaultMessageNoVideo, setDefaultMessageNoVideo] = useState('');
@@ -9133,6 +9134,7 @@ const AIConfigComponent = ({
       setTemperature(config.AIConfig.Temperature ?? 0.7);
       setMaxTokens(config.AIConfig.MaxTokens ?? 1000);
       setSystemPrompt(config.AIConfig.SystemPrompt || '');
+      setEnableStreaming(config.AIConfig.EnableStreaming !== false);
       setDefaultMessageNoVideo(config.AIConfig.DefaultMessageNoVideo || '');
       setDefaultMessageWithVideo(config.AIConfig.DefaultMessageWithVideo || '');
     }
@@ -9165,6 +9167,7 @@ const AIConfigComponent = ({
             Temperature: temperature,
             MaxTokens: maxTokens,
             SystemPrompt: systemPrompt,
+            EnableStreaming: enableStreaming,
             DefaultMessageNoVideo: defaultMessageNoVideo,
             DefaultMessageWithVideo: defaultMessageWithVideo,
           }),
@@ -9517,15 +9520,39 @@ const AIConfigComponent = ({
 
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              自定义系统提示词
+           自定义系统提示词
             </label>
             <textarea
-              value={systemPrompt}
+        value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={4}
               placeholder='可自定义AI的角色和行为规则...'
               className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
             />
+          </div>
+
+          {/* 流式响应开关 */}
+          <div className='flex items-center justify-between py-3 border-t border-gray-200 dark:border-gray-700'>
+            <div className='flex-1'>
+              <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                流式响应
+              </label>
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                启用后AI消息将实时流式显示，关闭后将等待完整响应后一次性显示
+              </p>
+            </div>
+            <button
+              onClick={() => setEnableStreaming(!enableStreaming)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          enableStreaming ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  enableStreaming ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
         </div>
     </details>
